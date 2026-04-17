@@ -2,38 +2,58 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>MKIT: FIXED NIGHTMARE</title>
+    <title>MKIT: FINAL GRADUATION</title>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; color: #fff; font-family: 'Courier New', monospace; }
+        body { margin: 0; background: #000; overflow: hidden; color: #fff; font-family: 'Segoe UI', sans-serif; }
         canvas { display: block; }
         #glitch-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 50; opacity: 0; background: repeating-linear-gradient(0deg, rgba(0,0,0,0.1), rgba(0,0,0,0.1) 1px, transparent 1px, transparent 2px); }
         #hud { position: absolute; top: 20px; left: 20px; background: rgba(0,255,0,0.2); padding: 15px; border: 2px solid #0f0; z-index: 10; font-weight: bold; }
-        #radar { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); font-size: 2em; color: #ff0; z-index: 10; }
-        #msg-box { position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); font-size: 1.5em; color: #f00; text-align: center; z-index: 60; font-weight: bold; display: none; }
+        #radar { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); font-size: 1.5em; color: #ff0; z-index: 10; text-shadow: 2px 2px #000; }
+        
+        .overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 100; background: #000; flex-direction: column; }
+        .card { border: 2px solid #0f0; padding: 50px; background: #050505; text-align: center; box-shadow: 0 0 30px rgba(0,255,0,0.2); }
+        
+        #victory-screen { display: none; background: radial-gradient(circle, #1a2a6c, #b21f1f, #fdbb2d); z-index: 500; }
+        .win-card { background: rgba(0,0,0,0.8); padding: 50px; border-radius: 30px; border: 5px solid #fff; text-align: center; animation: pop 0.5s cubic-bezier(0.17, 0.89, 0.32, 1.49); }
+        @keyframes pop { from { transform: scale(0); } to { transform: scale(1); } }
+
+        button { padding: 15px 40px; background: #0f0; color: #000; border: none; cursor: pointer; font-weight: bold; font-size: 1.2em; border-radius: 5px; }
+        button:hover { background: #fff; transform: scale(1.1); }
+        
         #screamer { position: fixed; inset: 0; background: #000; display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; color: #f00; }
-        #screamer h1 { font-size: 8vw; margin: 0; }
-        .overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 100; background: #000; }
-        button { padding: 15px 50px; background: #0f0; color: #000; border: none; cursor: pointer; font-weight: bold; font-size: 1.2em; }
     </style>
 </head>
 <body>
 
 <div id="glitch-overlay"></div>
-<div id="msg-box"></div>
-<div id="radar">↑ ЗАЧЕТКА ТАМ ↑</div>
-<div id="hud">ЗАЧЕТКИ: <span id="count">0</span> / 3</div>
+<div id="hud">СТАТУС: [ЗАЧЕТКИ <span id="count">0</span> / 3]</div>
+<div id="radar">УДАЧИ, СТУДЕНТ</div>
 
-<div id="screamer">
-    <h1>ПЕРЕСДАЧА!</h1>
-    <h2 id="killer-name" style="color: #fff; margin-top: 20px;"></h2>
-    <button onclick="location.reload()">ЗАНОВО</button>
+<!-- МЕНЮ -->
+<div id="menu" class="overlay">
+    <div class="card">
+        <h1 style="color: #0f0; font-size: 3em;">MKIT_STRIKE</h1>
+        <p>Собери 3 зачетки и выживи</p>
+        <button onclick="startGame()">НАЧАТЬ ЭКЗАМЕН</button>
+    </div>
 </div>
 
-<div id="menu" class="overlay">
-    <div style="border: 2px solid #0f0; padding: 50px; background: #050505; text-align: center;">
-        <h1 style="color: #0f0; margin-bottom: 30px;">MKIT_FINAL.EXE</h1>
-        <button onclick="startGame()">ВОЙТИ</button>
+<!-- ПОБЕДА -->
+<div id="victory-screen" class="overlay">
+    <div class="win-card">
+        <h1 style="font-size: 4em; margin: 0;">УСПЕШНО! 🎓</h1>
+        <h2 style="color: #ffeb3b;">ДИПЛОМ В КАРМАНЕ</h2>
+        <p id="final-time" style="font-size: 1.5em; margin: 20px 0;"></p>
+        <div style="font-size: 4em; margin-bottom: 20px;">💪👓🕶️</div>
+        <button onclick="location.reload()" style="background: #fff;">ВЫЙТИ ИЗ КОРПУСА</button>
     </div>
+</div>
+
+<!-- СМЕРТЬ -->
+<div id="screamer">
+    <h1 style="font-size: 8vw;">ОТЧИСЛЕН!</h1>
+    <h2 id="killer-name" style="color: #fff;"></h2>
+    <button onclick="location.reload()" style="margin-top: 30px;">ПЕРЕСДАЧА</button>
 </div>
 
 <canvas id="game"></canvas>
@@ -44,11 +64,11 @@ const ctx = canvas.getContext('2d');
 
 let isRunning = false;
 let score = 0;
+let startTime = 0;
 let player = { x: 1.5, y: 1.5, dir: 0 };
 let keys = {};
 let zBuffer = [];
 
-// Карта 16х16
 const map = [
     1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
     1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,
@@ -69,22 +89,18 @@ const map = [
 ];
 
 let npcs = [
-    { x: 14.5, y: 1.5, name: "Денис Ледин", img: "👓", speed: 0.012 },
-    { x: 1.5,  y: 14.5, name: "Илья Ледин", img: "🕶️", speed: 0.012 },
-    { x: 8.5,  y: 8.5,  name: "Андрей Бурмалдиныч", img: "💪", speed: 0.018 }
+    { x: 14.5, y: 1.5, name: "Денис Ледин", img: "👓", speed: 0.011 },
+    { x: 1.5,  y: 14.5, name: "Илья Ледин", img: "🕶️", speed: 0.011 },
+    { x: 8.5,  y: 8.5,  name: "Андрей Бурмалдиныч", img: "💪", speed: 0.016 }
 ];
 
-// Точные координаты зачеток (проверено на карте)
-let items = [
-    {x: 14.5, y: 14.5}, // Дальний правый угол
-    {x: 1.5,  y: 14.5}, // Дальний левый угол (осторожно, там Илья)
-    {x: 14.5, y: 1.5}   // Ближний правый угол (осторожно, там Денис)
-];
+let items = [{x: 14.5, y: 1.8}, {x: 1.8, y: 14.2}, {x: 14.2, y: 14.2}];
 
 function startGame() {
     document.getElementById('menu').style.display = 'none';
     canvas.requestPointerLock();
     isRunning = true;
+    startTime = Date.now();
     loop();
 }
 
@@ -93,20 +109,26 @@ window.onkeyup = e => keys[e.code] = false;
 window.onmousemove = e => { if(document.pointerLockElement) player.dir += e.movementX * 0.003; };
 
 function update() {
+    if(!isRunning) return;
     const step = 0.06;
     let nx = player.x, ny = player.y;
     if(keys['KeyW']) { nx += Math.cos(player.dir)*step; ny += Math.sin(player.dir)*step; }
     if(keys['KeyS']) { nx -= Math.cos(player.dir)*step; ny -= Math.sin(player.dir)*step; }
     if(keys['KeyA']) { nx += Math.sin(player.dir)*step; ny -= Math.cos(player.dir)*step; }
     if(keys['KeyD']) { nx -= Math.sin(player.dir)*step; ny += Math.cos(player.dir)*step; }
-
     if(map[Math.floor(ny)*16 + Math.floor(nx)] === 0) { player.x = nx; player.y = ny; }
 
     let minD = 20;
     npcs.forEach(n => {
         let d = Math.hypot(player.x-n.x, player.y-n.y);
         if(d < minD) minD = d;
-        if(d < 7) { n.x += ((player.x-n.x)/d)*n.speed; n.y += ((player.y-n.y)/d)*n.speed; }
+        if(d < 7) { 
+            let vx = ((player.x-n.x)/d)*n.speed;
+            let vy = ((player.y-n.y)/d)*n.speed;
+            // ПРОВЕРКА СТЕН ДЛЯ NPC
+            if(map[Math.floor(n.y)*16 + Math.floor(n.x + vx*3)] === 0) n.x += vx;
+            if(map[Math.floor(n.y + vy*3)*16 + Math.floor(n.x)] === 0) n.y += vy;
+        }
         if(d < 0.45) {
             isRunning = false; document.exitPointerLock();
             document.getElementById('killer-name').innerText = `Тебя поймал: ${n.name}`;
@@ -116,20 +138,14 @@ function update() {
 
     document.getElementById('glitch-overlay').style.opacity = minD < 4 ? (4 - minD) / 4 : 0;
 
-    // Обновление радара
+    // Радар
     if(items.length > 0) {
         let it = items[0];
         let angleTo = Math.atan2(it.y - player.y, it.x - player.x) - player.dir;
-        while(angleTo < -Math.PI) angleTo += Math.PI*2;
-        while(angleTo > Math.PI) angleTo -= Math.PI*2;
-        
+        while(angleTo < -Math.PI) angleTo += Math.PI*2; while(angleTo > Math.PI) angleTo -= Math.PI*2;
         let arrow = "↑";
-        if(angleTo < -0.5) arrow = "←";
-        if(angleTo > 0.5) arrow = "→";
-        if(Math.abs(angleTo) > 2) arrow = "↓";
+        if(angleTo < -0.5) arrow = "←"; if(angleTo > 0.5) arrow = "→"; if(Math.abs(angleTo) > 2) arrow = "↓";
         document.getElementById('radar').innerText = `${arrow} СЛЕДУЮЩАЯ ЗАЧЕТКА ${arrow}`;
-    } else {
-        document.getElementById('radar').innerText = "БЕГИ К ВЫХОДУ!";
     }
 
     items.forEach((it, i) => {
@@ -137,15 +153,23 @@ function update() {
             items.splice(i, 1);
             score++;
             document.getElementById('count').innerText = score;
-            if(score === 3) alert("ВСЕ ЗАЧЕТКИ СОБРАНЫ! ПОБЕДА!");
+            if(score === 3) winGame();
         }
     });
 }
 
+function winGame() {
+    isRunning = false;
+    document.exitPointerLock();
+    const time = ((Date.now() - startTime) / 1000).toFixed(1);
+    document.getElementById('final-time').innerText = `ВРЕМЯ ПРОХОЖДЕНИЯ: ${time} СЕКУНД`;
+    document.getElementById('victory-screen').style.display = 'flex';
+}
+
 function draw() {
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-    ctx.fillStyle = '#111'; ctx.fillRect(0,0,canvas.width, canvas.height/2);
-    ctx.fillStyle = '#222'; ctx.fillRect(0,canvas.height/2,canvas.width, canvas.height/2);
+    ctx.fillStyle = '#050505'; ctx.fillRect(0,0,canvas.width, canvas.height/2);
+    ctx.fillStyle = '#111'; ctx.fillRect(0,canvas.height/2,canvas.width, canvas.height/2);
 
     const rays = 250;
     zBuffer = new Array(rays);
@@ -158,26 +182,26 @@ function draw() {
         }
         zBuffer[i] = d;
         let h = canvas.height / (d * Math.cos(angle - player.dir));
-        let lum = Math.max(40, 255 - d*12);
+        let lum = Math.max(30, 255 - d*14);
         ctx.fillStyle = `rgb(0, ${lum}, ${lum/2})`;
         ctx.fillRect(i*(canvas.width/rays), (canvas.height-h)/2, (canvas.width/rays)+1, h);
     }
 
     let objs = [...npcs, ...items.map(it=>({...it, name:"ЗАЧЕТКА", img:"📜", isIt:true}))];
-    objs.forEach(s => {
+    objs.sort((a,b)=>Math.hypot(b.x-player.x,b.y-player.y)-Math.hypot(a.x-player.x,a.y-player.y)).forEach(s => {
         let dx = s.x - player.x, dy = s.y - player.y, dist = Math.hypot(dx, dy);
         let angle = Math.atan2(dy, dx) - player.dir;
         while(angle < -Math.PI) angle += Math.PI*2; while(angle > Math.PI) angle -= Math.PI*2;
         if(Math.abs(angle) < 0.8) {
+            let x = (angle * canvas.width / 1.2) + (canvas.width/2);
             let rayIdx = Math.floor(((angle + 0.6) / 1.2) * rays);
             if(dist < zBuffer[rayIdx]) {
                 let size = canvas.height / dist;
-                let x = (angle * canvas.width / 1.2) + (canvas.width/2);
                 ctx.textAlign = "center";
-                ctx.font = `bold ${size/10}px Arial`;
+                ctx.font = `bold ${size/10}px sans-serif`;
                 ctx.fillStyle = s.isIt ? "#ff0" : "#f00";
                 ctx.fillText(s.name, x, (canvas.height-size)/2);
-                ctx.font = `${size/1.8}px Arial`;
+                ctx.font = `${size/2}px sans-serif`;
                 ctx.fillText(s.img, x, canvas.height/2 + size/4);
             }
         }
